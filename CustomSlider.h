@@ -71,6 +71,25 @@ protected:
         //painter.drawLine(handleCenter, bottomCenter);
     }
 
+    void mousePressEvent(QMouseEvent *event) override {
+        // Check if left button was clicked
+        if (event->button() == Qt::LeftButton) {
+            // Get mouse position relative to the slider
+            int mousePos = event->pos().x();
+
+            // Map mouse position to slider range
+            double posRatio = static_cast<double>(mousePos) / width();
+            int sliderRange = maximum() - minimum();
+            int sliderPos = posRatio * sliderRange + minimum();
+
+            // Set the slider value
+            setValue(sliderPos);
+        }
+
+        // Call base class implementation
+        QSlider::mousePressEvent(event);
+    }
+
 };
 
 #endif //SONGGENGUI_CUSTOMSLIDER_H

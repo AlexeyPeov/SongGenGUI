@@ -1,7 +1,3 @@
-//
-// Created by mi on 08.09.2023.
-//
-
 #ifndef SONGGENGUI_CONTEXTMENUHANDLER_H
 #define SONGGENGUI_CONTEXTMENUHANDLER_H
 
@@ -10,27 +6,38 @@
 #include <QObject>
 #include <QMenu>
 #include <QAction>
-#include <QPushButton>
+#include "Cell.h"
+
+#include "SongGen.h"
+
 
 class ContextMenuHandler : public QWidget {
 Q_OBJECT
 
 public:
 
-    explicit ContextMenuHandler(QPushButton* parent);
+    explicit ContextMenuHandler(Cell* parent);
 
     void showButtonContextMenu(const QPoint &pos);
 
 public slots:
 
-    void deleteAction();
+    void muteAction();
 
     void copyAction();
 
     void pasteAction();
 
+    void regenCleanAction();
+
+    void regenSimilarAction();
+
+    void regenSimilarRhythmAction();
+
 private:
-    QPushButton* m_button = nullptr;
+    Cell* m_cell_ptr = nullptr;
+
+    bool m_buff_muted();
 };
 
 

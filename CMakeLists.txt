@@ -15,10 +15,40 @@ set(REQUIRED_LIBS_QUALIFIED winmm Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Q
 
 find_package(Qt6 COMPONENTS ${REQUIRED_LIBS} REQUIRED)
 
-add_executable(SongGenGUI main.cpp App.ui App.h App.cpp
-        ButtonEventFilter.h ButtonEventFilter.h
-        CustomSlider.h SliderHeader.h
-        ContextMenuHandler.cpp ContextMenuHandler.h
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../SongGen)
+
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../SongGen/cxxmidi)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../SongGen/cxxmidi/output)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../SongGen/cxxmidi/guts)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../SongGen/cxxmidi/player)
+
+add_executable(SongGenGUI
+        main.cpp
+
+
+        App.ui App.h App.cpp
+
+        Cell.h Cell.cpp
+
+        ButtonEventFilter.h ButtonEventFilter.cpp
+        ContextMenuHandler.h ContextMenuHandler.cpp
+
+        CustomSlider.h
+        SliderHeader.h
+
+        ../SongGen/SongGen.h ../SongGen/SongGen.cpp
+        ../SongGen/cxxmidi/guts/PlayerBase.hpp ../SongGen/cxxmidi/guts/PlayerBase.cpp
+        ../SongGen/cxxmidi/output/MessageInterface.hpp ../SongGen/cxxmidi/output/MessageInterface.cpp
+        ../SongGen/cxxmidi/output/Windows.hpp ../SongGen/cxxmidi/output/Windows.cpp
+        ../SongGen/cxxmidi/Event.hpp ../SongGen/cxxmidi/Event.cpp
+        ../SongGen/cxxmidi/File.hpp ../SongGen/cxxmidi/File.cpp
+        ../SongGen/cxxmidi/Instrument.hpp ../SongGen/cxxmidi/Instrument.cpp
+        ../SongGen/cxxmidi/Message.hpp ../SongGen/cxxmidi/Message.cpp
+        ../SongGen/cxxmidi/Note.hpp ../SongGen/cxxmidi/Note.cpp
+        ../SongGen/cxxmidi/Track.hpp ../SongGen/cxxmidi/Track.cpp
+        ../SongGen/cxxmidi/player/PlayerSync.hpp ../SongGen/cxxmidi/player/PlayerSync.cpp
+
         )
 
 

@@ -20,9 +20,14 @@
 #include "ButtonEventFilter.h"
 #include "CustomSlider.h"
 #include "SliderHeader.h"
+#include "Cell.h"
 
-class SongGen;
+#include "../SongGen/SongGenEnumsToString.h"
+#include "ContextMenuHandler.h"
+#include "SongGen.h"
+
 class File;
+class SongGen;
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class App; }
@@ -64,6 +69,10 @@ private slots:
 
     void on_exportButton_clicked();
 
+    void on_addChunkButton_clicked();
+
+    void on_removeChunkButton_clicked();
+
     // tab 2 table resize
 
     void resizeEvent(QResizeEvent *event);
@@ -78,7 +87,7 @@ private:
     std::thread m_play_thread;
 
 
-    void m_populate_timeline();
+    void m_add_chunk();
 
 
     void on_sliderPressed();
@@ -88,7 +97,18 @@ private:
     void on_sliderValueChanged(int value);
 
 
-};
+    void
+    setup_row(int start_oct, int range, ProgressionStyle prog_st,
+              NoteLenBias nlb, uint32_t custom_note_len, int instr_index,
+              int default_table_row_index);
 
+    void m_add_track_to_timeline_table(size_t track_index);
+
+    void m_add_track_chunk(size_t track_index, QWidget *widget);
+
+    void m_pop_track_chunk(Track &track, QWidget *widget);
+
+    void m_pop_chunk();
+};
 
 #endif //SONGGENGUI_APP_H

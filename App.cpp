@@ -8,9 +8,6 @@
 #include "App.h"
 #include "ui_App.h"
 
-#include "../SongGen/SongGen.h"
-#include "../SongGen/SongGenEnumsToString.h"
-//#include "../SongGen/cxxmidi/player/player_sync_copy.hpp"
 
 App::App(QWidget *parent) :
         QDialog(parent), ui(new Ui::App) {
@@ -59,6 +56,7 @@ App::App(QWidget *parent) :
     slider_header->setSectionResizeMode(1, QHeaderView::Stretch);
 
     connect(slider, &CustomSlider::valueChanged, this, &App::on_sliderValueChanged);
+    //connect(slider, &CustomSlider::sliderPressed, this, &App::on_sliderPressed);
     /*QPainter painter(this);
         style()->drawComplexControl(QStyle::CC_Slider, &opt, &painter, this);
 
@@ -95,7 +93,21 @@ App::App(QWidget *parent) :
 
         double max_pos = slider->maximum();
         slider->blockSignals(true);
-        slider->setSliderPosition(max_pos * mult);
+        int pos = max_pos * mult;
+
+        if(pos >= slider->maximum()){
+            slider->setSliderPosition(0);
+            m_song_gen_ptr->pause_playing();
+
+            m_song_gen_ptr->set_play_position(
+                    slider->minimum(),
+                    slider->maximum(),
+                    0);
+        }
+        else {
+            slider->setSliderPosition(pos);
+        }
+
         slider->blockSignals(false);
     });
     timer->start(5);
@@ -123,6 +135,24 @@ App::App(QWidget *parent) :
             ui->chordProgressionComboBox->addItem(QString::fromStdString(str));
         }
     }
+
+    auto dt = m_song_gen_ptr->dt();
+
+    on_addRowButton_clicked();
+    setup_row(3, 0, ProgressionStyle::CHORD_PLAIN, NoteLenBias::NO, 0, 19, 0);
+
+    // was - 19 41 53 95
+
+    on_addRowButton_clicked();
+    setup_row(3, 0, ProgressionStyle::NOTES_OF_CHORD, NoteLenBias::SLOW, dt * 2, 19, 1);
+
+    on_addRowButton_clicked();
+    setup_row(3, 0, ProgressionStyle::NOTES_OF_CHORD, NoteLenBias::SLOW, 0, 19, 2);
+
+    on_addRowButton_clicked();
+    setup_row(4, 0, ProgressionStyle::NOTES, NoteLenBias::FAST, 0, 19, 3);
+
+
 }
 
 App::~App() {
@@ -154,7 +184,9 @@ void App::on_chordProgressionComboBox_currentIndexChanged(int index){
     );
     if(it != vec.end()){
         auto progression = *it;
-        if(progression == "Random") progression = "";
+        if(progression == "Random")
+            progression = vec[m_song_gen_ptr->m_rand<size_t>(1,vec.size()-1)];
+
         m_song_gen_ptr->set_chord_progression(progression);
 
     }
@@ -188,6 +220,48 @@ void App::on_moodComboBox_currentIndexChanged(int index){
 
 }
 
+void App::setup_row(int start_oct, int range, ProgressionStyle prog_st,
+                    NoteLenBias nlb, uint32_t custom_note_len, int instr_index,
+                    int default_table_row_index) {
+    auto table = ui->createTableWidget;
+
+    auto st_oct_wid = (QComboBox*)table->cellWidget(default_table_row_index,1);
+    auto range_wid = (QComboBox*)table->cellWidget(default_table_row_index, 2);
+    auto prog_st_wid = (QComboBox*)table->cellWidget(default_table_row_index,3);
+    auto nlb_wid = (QComboBox*)table->cellWidget(default_table_row_index,4);
+    auto cust_note_len_wid = (QComboBox*)table->cellWidget(default_table_row_index,5);
+    auto instr_wid = (QComboBox*)table->cellWidget(default_table_row_index,6);
+
+    st_oct_wid->setCurrentIndex(start_oct);
+    range_wid->setCurrentIndex(range);
+    prog_st_wid->setCurrentIndex((int)progression_style_vec[(int)prog_st].second);
+    nlb_wid->setCurrentIndex((int)note_len_bias_vec[(int)nlb].second);
+
+
+    auto dt = m_song_gen_ptr->dt();
+
+    if(custom_note_len == 0){
+        cust_note_len_wid->setCurrentIndex(0);
+    }
+    else if(custom_note_len == dt / 4){
+        cust_note_len_wid->setCurrentIndex(1);
+    }
+    else if(custom_note_len == dt / 2){
+        cust_note_len_wid->setCurrentIndex(2);
+    }
+    else if(custom_note_len == dt){
+        cust_note_len_wid->setCurrentIndex(3);
+    }
+    else if(custom_note_len == dt * 2){
+        cust_note_len_wid->setCurrentIndex(4);
+    }
+    else if(custom_note_len == dt * 4){
+        cust_note_len_wid->setCurrentIndex(5);
+    }
+
+    instr_wid->setCurrentIndex(instr_index);
+}
+
 void App::on_keyComboBox_currentIndexChanged(int index){
     Q_UNUSED(index)
 
@@ -205,9 +279,10 @@ void App::on_keyComboBox_currentIndexChanged(int index){
 void App::on_addRowButton_clicked() {
 
     m_song_gen_ptr->add_track();
-
-    int row = ui->createTableWidget->rowCount();
+    const int row = ui->createTableWidget->rowCount();
     ui->createTableWidget->insertRow(row);
+    auto& track = m_song_gen_ptr->get_track((size_t)row);
+
 
     auto nameLineEdit = new QLineEdit;
     QRegularExpression rx("[\\x00-\\x7F]*");
@@ -215,7 +290,6 @@ void App::on_addRowButton_clicked() {
     nameLineEdit->setValidator(validator);
     QString track_name = "track_" + QString::fromStdString(std::to_string(row+1));
     nameLineEdit->setText(track_name);
-    auto& track = m_song_gen_ptr->get_track((size_t)row);
     track.set_name(track_name.toStdString());
     ui->createTableWidget->setCellWidget(row, 0, nameLineEdit);
 
@@ -246,28 +320,26 @@ void App::on_addRowButton_clicked() {
         rangeComboBox->addItem(QString(std::to_string(i).c_str()));
     ui->createTableWidget->setCellWidget(row, 2, rangeComboBox);
 
+    track.set_range_in_octaves(0);
+
     connect(rangeComboBox, &QComboBox::currentIndexChanged, this, [this, rangeComboBox, row]{
         auto& track = m_song_gen_ptr->get_track((size_t)row);
         auto num = rangeComboBox->currentText().toUInt();
-        track.set_range_in_octaves(num);
+        track.set_range_in_octaves(num - 1);
     });
 
 
     auto progrStyleComboBox = new QComboBox;
+
     for(auto&[str, en] : progression_style_vec)
         progrStyleComboBox->addItem(QString::fromStdString(str));
+
     ui->createTableWidget->setCellWidget(row, 3, progrStyleComboBox);
 
-    connect(progrStyleComboBox, &QComboBox::currentIndexChanged, this, [this, progrStyleComboBox, row]{
+    connect(progrStyleComboBox, &QComboBox::currentIndexChanged, this, [this, progrStyleComboBox, row](int index){
         auto& track = m_song_gen_ptr->get_track((size_t)row);
         auto str = progrStyleComboBox->currentText().toStdString();
-        auto it = std::find_if(
-                progression_style_vec.begin(),
-                progression_style_vec.end(),
-                [&](auto& pair){ return pair.first == str; }
-        );
-
-        auto&[k,progrStyle] = *it;
+        auto&[k,progrStyle] = progression_style_vec[index];
         track.set_progression_style(progrStyle);
     });
 
@@ -277,16 +349,10 @@ void App::on_addRowButton_clicked() {
         noteLenBiasComboBox->addItem(QString::fromStdString(str));
     ui->createTableWidget->setCellWidget(row, 4, noteLenBiasComboBox);
 
-    connect(noteLenBiasComboBox, &QComboBox::currentIndexChanged, this, [this, noteLenBiasComboBox, row]{
+    connect(noteLenBiasComboBox, &QComboBox::currentIndexChanged, this, [this, noteLenBiasComboBox, row](int index){
         auto& track = m_song_gen_ptr->get_track((size_t)row);
         auto str = noteLenBiasComboBox->currentText().toStdString();
-        auto it = std::find_if(
-                note_len_bias_vec.begin(),
-                note_len_bias_vec.end(),
-                [&](auto& pair){ return pair.first == str; }
-        );
-
-        auto&[k,noteLenBias] = *it;
+        auto&[k,noteLenBias] = note_len_bias_vec[index];
         track.set_note_len_bias(noteLenBias);
     });
 
@@ -299,7 +365,7 @@ void App::on_addRowButton_clicked() {
     customNoteLenComboBox->addItem("Whole");
     ui->createTableWidget->setCellWidget(row, 5, customNoteLenComboBox);
 
-    connect(customNoteLenComboBox, &QComboBox::currentIndexChanged, this, [this, customNoteLenComboBox, row]{
+    connect(customNoteLenComboBox, &QComboBox::currentIndexChanged, this, [this, customNoteLenComboBox, row](int index){
         auto& track = m_song_gen_ptr->get_track((size_t)row);
         auto str = customNoteLenComboBox->currentText().toStdString();
         auto dt = m_song_gen_ptr->dt();
@@ -340,27 +406,88 @@ void App::on_addRowButton_clicked() {
         m_song_gen_ptr->get_track((size_t)row).set_instrument(instrument);
     });
 
+    m_add_track_to_timeline_table(row);
 }
 
 void App::on_removeRowButton_clicked() {
     int row = ui->createTableWidget->rowCount();
+
+    bool empty = row == 0;
+
+    if(empty)
+        return;
+
     ui->createTableWidget->removeRow(row - 1);
     m_song_gen_ptr->pop_track();
+
+
+    ui->timelineTableWidget->removeRow(row-1);
+    m_song_gen_ptr->set_file_to_play();
+
 }
 
 void App::on_createButton_clicked() {
-    //m_song_gen_ptr->print_tracks_info();
-    m_song_gen_ptr->create();
-    m_song_gen_ptr->mute_playing();
-    m_song_gen_ptr->pause_playing();
-    m_populate_timeline();
-    m_song_gen_ptr->set_file_to_play();
+//    m_song_gen_ptr->print_tracks_info();
+//    m_song_gen_ptr->create();
+//    m_song_gen_ptr->mute_playing();
+//    m_song_gen_ptr->pause_playing();
+//    m_add_chunk();
+//    m_song_gen_ptr->set_file_to_play();
 }
 
-void App::m_populate_timeline(){
-    const auto& file = m_song_gen_ptr->get_file();
-    const auto size = file.size();
+void App::m_add_track_chunk(size_t track_index, QWidget* widget){
 
+    auto& tracks = m_song_gen_ptr->get_file();
+    auto& track = tracks[track_index];
+    auto& buffers = track.get_buffers();
+
+    // create row
+    auto filter = new ButtonEventFilter(widget, nullptr, m_song_gen_ptr.get());
+    auto layout = widget->layout();
+
+    // add buffer to track
+    buffers.emplace_back();
+    auto buff_index = buffers.size() - 1;
+    m_song_gen_ptr->create_melody_of_track(track, buff_index);
+
+    auto cell = new Cell("");
+    cell->set_up(m_song_gen_ptr.get(), track_index, buff_index, filter);
+    layout->addWidget(cell);
+}
+
+void App::m_pop_track_chunk(Track& track, QWidget* widget){
+    auto& buffers = track.get_buffers();
+
+    bool empty = buffers.empty();
+
+    if(empty)
+        return;
+
+    buffers.pop_back();
+
+    int index = buffers.size();
+
+    auto layout = widget->layout();
+
+    QLayoutItem *item = layout->itemAt(index);
+    if (item != nullptr) {
+        auto w = item->widget();
+        if (w != nullptr) {
+            layout->removeWidget(w);
+            delete w;
+        }
+    }
+
+}
+
+void App::m_add_chunk(){
+
+    m_song_gen_ptr->pause_playing();
+
+    auto& tracks = m_song_gen_ptr->get_file();
+    const auto tracks_size = tracks.size();
+
+    m_song_gen_ptr->set_chunk_amount(m_song_gen_ptr->get_chunk_amount() + 1);
 
     auto table = ui->timelineTableWidget;
     auto header = (SliderHeader*)table->horizontalHeader();
@@ -368,66 +495,104 @@ void App::m_populate_timeline(){
 
     auto slider_width = slider->width();
 
+    auto column_index = 1;
+    table->setColumnWidth(column_index, slider_width);
 
-    int row = table->rowCount();
-    while(row){
-        table->removeRow(row - 1);
-        row = table->rowCount();
+    for(size_t i = 0; i < tracks_size; i++){
+        auto widget = table->cellWidget(i, column_index);
+        m_add_track_chunk(i,widget);
     }
+
+    m_song_gen_ptr->set_file_to_play();
+}
+
+void App::m_pop_chunk(){
+
+    m_song_gen_ptr->pause_playing();
+
+    auto chunk_am = m_song_gen_ptr->get_chunk_amount();
+
+    bool empty = chunk_am == 0;
+
+    if(empty)
+        return;
+
+    m_song_gen_ptr->set_chunk_amount(chunk_am - 1);
+
+
+    auto& tracks = m_song_gen_ptr->get_file();
+    const auto tracks_size = tracks.size();
+
+    auto table = ui->timelineTableWidget;
+    auto header = (SliderHeader*)table->horizontalHeader();
+    auto slider = header->getSlider();
+
+    auto slider_width = slider->width();
 
     auto column_index = 1;
     table->setColumnWidth(column_index, slider_width);
 
-    std::cout << "sliderwidth: " << slider_width << '\n';
-
-    for(auto i = 0; i < size; i++){
-
-        auto& track = file[i];
-
-        // create row
-        table->insertRow(i);
-
-        int buffers = 16;
-
-        auto* widget = new QWidget;
-        auto filter = new ButtonEventFilter(widget);
-
-        widget->setContentsMargins(0,0,0,0);
-
-        auto* layout = new QHBoxLayout(widget);
-        layout->setContentsMargins(0,0,0,0);
-        layout->setSpacing(0);
-
-
-        for(int j = 0; j < buffers; j++){
-
-            auto button = new QPushButton("");
-            auto cmh = new ContextMenuHandler(button);
-
-            button->setContextMenuPolicy(Qt::CustomContextMenu);
-            connect(
-                    button,
-                    &QPushButton::customContextMenuRequested,
-                    cmh,
-                    &ContextMenuHandler::showButtonContextMenu
-            );
-
-            button->installEventFilter(filter);
-            button->setAcceptDrops(true);
-
-            layout->addWidget(button);
-
-        }
-        widget->setLayout(layout);
-        table->setCellWidget(i, column_index, widget);
-
+    for(auto i = 0; i < tracks_size; i++){
+        auto& track = tracks[i];
+        auto widget = table->cellWidget(i, column_index);
+        m_pop_track_chunk(track,widget);
     }
+
+    m_song_gen_ptr->set_file_to_play();
+}
+
+void App::m_add_track_to_timeline_table(size_t track_index) {
+
+    auto& track = m_song_gen_ptr->get_file()[track_index];
+
+    auto table = ui->timelineTableWidget;
+    auto header = (SliderHeader*)table->horizontalHeader();
+    auto slider = header->getSlider();
+
+    auto slider_width = slider->width();
+
+    auto column_index = 1;
+    table->setColumnWidth(column_index, slider_width);
+
+
+    auto& buffers = track.get_buffers();
+
+    buffers.resize(m_song_gen_ptr->get_chunk_amount());
+// todo : regenerate clean crashes - why?
+    // create row
+    int row = table->rowCount();
+    table->insertRow(row);
+
+    auto* widget = new QWidget;
+    auto filter = new ButtonEventFilter(widget, nullptr, m_song_gen_ptr.get());
+
+    widget->setContentsMargins(0,0,0,0);
+
+    auto* layout = new QHBoxLayout(widget);
+    layout->setContentsMargins(0,0,0,0);
+    layout->setSpacing(0);
+
+
+
+    // add buffer to track
+    for(size_t j = 0; j < buffers.size(); j++){
+        m_song_gen_ptr->create_melody_of_track(track, j);
+        auto cell = new Cell("");
+        cell->set_up(m_song_gen_ptr.get(), track_index, j, filter);
+        layout->addWidget(cell);
+    }
+
+    widget->setLayout(layout);
+    table->setCellWidget(row, column_index, widget);
+
 }
 
 void App::on_sliderPressed(){
     std::cout << "slider pressed!\n";
-    //m_song_gen_ptr->mute_playing();
-    //m_song_gen_ptr->pause_playing();
+//    auto header = (SliderHeader*)ui->timelineTableWidget->horizontalHeader();
+//    auto slider = header->getSlider();
+    //slider->setValue() // where the mouse is
+
 }
 
 void App::on_sliderReleased(){
@@ -442,23 +607,22 @@ void App::on_sliderValueChanged(int value){
         return;
     }
 
-    //bool is_paused = m_song_gen_ptr->is_playback_paused();
+    bool is_paused = m_song_gen_ptr->is_playback_paused();
 
-    m_song_gen_ptr->mute_playing();
     m_song_gen_ptr->pause_playing();
 
     auto header = (SliderHeader*)ui->timelineTableWidget->horizontalHeader();
     auto slider = header->getSlider();
 
+
     m_song_gen_ptr->set_play_position(
             slider->minimum(),
             slider->maximum(),
-            (uint32_t)value);
+            (uint32_t)value
+    );
 
-    //if(!is_paused)
-    //m_song_gen_ptr->resume_playing();
-
-    std::cout << "slider value changed: " << value << '\n';
+    if(!is_paused)
+        m_song_gen_ptr->resume_playing();
 }
 
 void App::on_playAllButton_clicked(){
@@ -472,7 +636,6 @@ void App::on_playAllButton_pressed(){
 }
 
 void App::on_stopAllButton_clicked() {
-    m_song_gen_ptr->mute_playing();
     m_song_gen_ptr->pause_playing();
 }
 
@@ -524,6 +687,14 @@ void App::resizeEvent(QResizeEvent *event){
 //    int columnWidth = ui->timelineTableWidget->columnWidth(1);
 //    int columnX = ui->timelineTableWidget->columnViewportPosition(1);
 //    ui->playSlider->setGeometry(columnX, ui->playSlider->y(), columnWidth, ui->playSlider->height());
+}
+
+void App::on_addChunkButton_clicked() {
+    m_add_chunk();
+}
+
+void App::on_removeChunkButton_clicked() {
+    m_pop_chunk();
 }
 
 
