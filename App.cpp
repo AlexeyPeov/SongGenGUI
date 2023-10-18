@@ -138,20 +138,28 @@ App::App(QWidget *parent) :
 
     auto dt = m_song_gen_ptr->dt();
 
+    const size_t grand_piano = 15;
+
     on_addRowButton_clicked();
-    setup_row(3, 0, ProgressionStyle::CHORD_PLAIN, NoteLenBias::NO, 0, 19, 0);
+    setup_row(3, 0, ProgressionStyle::CHORD_PLAIN, NoteLenBias::NO, 0, grand_piano, 0);
 
     // was - 19 41 53 95
 
     on_addRowButton_clicked();
-    setup_row(3, 0, ProgressionStyle::NOTES_OF_CHORD, NoteLenBias::SLOW, dt * 2, 19, 1);
+    setup_row(3, 0, ProgressionStyle::ROOTS, NoteLenBias::SLOW, dt * 4, grand_piano, 1);
 
     on_addRowButton_clicked();
-    setup_row(3, 0, ProgressionStyle::NOTES_OF_CHORD, NoteLenBias::SLOW, 0, 19, 2);
+    setup_row(3, 0, ProgressionStyle::NOTES_OF_CHORD, NoteLenBias::SLOW, 0, grand_piano, 2);
 
     on_addRowButton_clicked();
-    setup_row(4, 0, ProgressionStyle::NOTES, NoteLenBias::FAST, 0, 19, 3);
+    setup_row(4, 0, ProgressionStyle::NOTES, NoteLenBias::FAST, 0, grand_piano, 3);
 
+
+    auto tempoSlider = ui->tempoSlider;
+    tempoSlider->setRange(60,200);
+    tempoSlider->setValue(120);
+
+    connect(tempoSlider, &QSlider::valueChanged, this, &App::on_tempoSliderValueChanged);
 
 }
 
@@ -160,6 +168,13 @@ App::~App() {
     m_song_gen_ptr->terminate_playback();
     m_play_thread.join();
     delete ui;
+}
+
+void App::on_tempoSliderValueChanged(int value){
+    auto bpmLabel = ui->bpmLabel;
+    auto str = "BPM: " + std::to_string(value);
+    bpmLabel->setText(str.c_str());
+    m_song_gen_ptr->set_bpm(value);
 }
 
 void App::on_styleComboBox_currentIndexChanged(int index) {

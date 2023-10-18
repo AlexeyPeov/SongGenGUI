@@ -52,6 +52,8 @@ private slots:
 
     void on_keyComboBox_currentIndexChanged(int index);
 
+    void on_tempoSliderValueChanged(int value);
+
     // tab 1 bottom buttons
     void on_addRowButton_clicked();
 
